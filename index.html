@@ -726,8 +726,10 @@ render();
 
   <div id="quiz-widget" class="flex-1 p-5 overflow-y-auto space-y-4 font-sans text-sm scrollbar-thin scrollbar-thumb-border">
     <div id="quiz-intro" class="chat-bubble-bot px-4 py-3 leading-relaxed">
-      Wähle eine Frage aus und beantworte sie per Multiple Choice. Es gibt keine AI Antworten — nur feste, zitierfähige Auskünfte aus unserer Umfrage (n = 132).
+      Wähle eine Frage aus und beantworte sie per Multiple Choice, oder nutze die vorgefertigten Auskünfte für schnelle, zitierfähige Informationen. Es gibt keine AI Antworten — nur feste, geprüfte Angaben aus unserer Umfrage (n = 132).
     </div>
+
+    <div id="info-buttons" class="flex flex-wrap gap-2 pt-3"></div>
 
     <div id="question-list" class="space-y-3"></div>
 
@@ -841,6 +843,35 @@ function renderQuestions() {
 }
 
 renderQuestions();
+
+// Predefined info buttons for quick factual answers (no AI)
+const PREDEFINED = [
+  { id: 'demografie', label: 'Demografie', text: `Unsere Erhebung umfasste n = 132 vollständige Antworten. Altersverteilung: Junge Erwachsene 88 (66.7 %), Erwachsene 38 (28.8 %), Senioren 6 (4.5 %). Geschlechterverteilung: 77 weiblich, 49 männlich, 6 divers.` },
+  { id: 'befunde', label: 'Hauptbefunde', text: `Die vier Hauptbefunde: 1) Junge überschätzen sich, 2) Sorge wächst mit dem Alter, 3) Konsens für Wasserzeichenpflicht, 4) Fehlende Sensibilisierung und geringes Vertrauen in Plattformen.` },
+  { id: 'wasserzeichen', label: 'Wasserzeichen', text: `Die höchste Zustimmung erhielt eine unsichtbare Kennzeichnungspflicht für KI Medien (Mittelwert 3.32 / 4). Diese Massnahme wird generationenübergreifend unterstützt.` },
+  { id: 'verhalten', label: 'Verhalten bei dubiosen Inhalten', text: `Maßnahmen der Befragten: 32.6 % prüfen die Quelle, 31.8 % ignorieren verdächtige Inhalte, 25.8 % melden sie der Plattform.` },
+  { id: 'limitationen', label: 'Limitationen', text: `Wichtige Limitation: Die Seniorengruppe ist mit n = 6 sehr klein und daher nicht repräsentativ. Zusätzlich besteht ein Self Selection Bias durch die Online Erhebung.` },
+  { id: 'deepfakes', label: 'Deep Fakes und Politik', text: `Deep Fakes untergraben Vertrauen, verstärken polarisierende Narrative und können kurzfristig Wahlen beeinflussen. Gegenmassnahmen: Kennzeichnung, schnelle Faktenchecks, Medienbildung.` }
+];
+
+function renderInfoButtons(){
+  const container = document.getElementById('info-buttons');
+  PREDEFINED.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'chat-chip text-xs px-3 py-1.5 rounded-full text-muted-foreground transition-all';
+    btn.textContent = p.label;
+    btn.addEventListener('click', () => {
+      quizFeedback.classList.remove('hidden');
+      quizFeedback.innerHTML = `<div class="font-bold">${p.label}</div><div class="mt-2">${p.text}</div>`;
+      // highlight corresponding card if present
+      const related = document.querySelector(`[data-id="${p.id}"]`);
+      if(related) related.classList.add('quiz-card correct');
+    });
+    container.appendChild(btn);
+  });
+}
+
+renderInfoButtons();
 </script>
 </body>
 </html>
