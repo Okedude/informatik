@@ -8,4 +8,10 @@
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
+  ,
+  "functions": {
+    "api/**/*.js": {
+      "regions": ["sfo1"]
+    }
+  }
 }
