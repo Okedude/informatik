@@ -716,162 +716,77 @@ render();
 <div id="chat-widget-container" class="flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl overflow-hidden ring-glow">
   <div class="px-5 py-4 border-b border-border bg-secondary flex items-center justify-between">
     <div>
-      <p class="font-display font-bold text-sm tracking-tight text-foreground">DEEP/FAKE Quiz</p>
-      <p class="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Multiple Choice — keine AI Antworten</p>
+      <p class="font-display font-bold text-sm tracking-tight text-foreground">DEEP/FAKE Assistant</p>
+      <p class="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Vorgefertigte Auskünfte — keine AI</p>
     </div>
     <button id="chat-close-btn" class="text-muted-foreground hover:text-foreground transition-colors p-1" aria-label="Widget schließen">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
     </button>
   </div>
 
-  <div id="quiz-widget" class="flex-1 p-5 overflow-y-auto space-y-4 font-sans text-sm scrollbar-thin scrollbar-thumb-border">
-    <div id="quiz-intro" class="chat-bubble-bot px-4 py-3 leading-relaxed">
-      Wähle eine Frage aus und beantworte sie per Multiple Choice, oder nutze die vorgefertigten Auskünfte für schnelle, zitierfähige Informationen. Es gibt keine AI Antworten — nur feste, geprüfte Angaben aus unserer Umfrage (n = 132).
+  <div id="chat-messages-container" class="flex-1 p-5 overflow-y-auto space-y-4 font-sans text-sm scrollbar-thin scrollbar-thumb-border">
+    <div class="flex flex-col items-start gap-1">
+      <div class="chat-bubble-bot px-4 py-3 max-w-[85%] leading-relaxed">
+        Hallo! Nutze die untenstehenden Auskunftsbuttons, um feste, zitierfähige Antworten aus unserer Umfrage (n = 132) zu erhalten. Es gibt keine freien Texteingaben und keine AI Antworten.
+      </div>
+      <span class="font-mono text-[9px] text-muted-foreground mt-1 px-1">ASSISTANT</span>
     </div>
-
-    <div id="info-buttons" class="flex flex-wrap gap-2 pt-3"></div>
-
-    <div id="question-list" class="space-y-3"></div>
-
-    <div id="quiz-feedback" class="hidden p-4 border border-border bg-card rounded-md"></div>
   </div>
+
+  <div id="chat-suggestion-chips" class="p-3 border-t border-border bg-secondary flex flex-wrap gap-2"></div>
 </div>
 
 <!-- TOGGLE BUTTON -->
-<button id="chat-toggle-btn" class="btn-glow bg-accent text-accent-foreground w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105" aria-label="Quiz öffnen">
+<button id="chat-toggle-btn" class="btn-glow bg-accent text-accent-foreground w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105" aria-label="Assistent öffnen">
   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
 </button>
 
 <script>
-// Simple multiple choice widget (no AI, client only)
+// Chat widget with predefined, non-AI replies
 const chatToggleBtn = document.getElementById('chat-toggle-btn');
 const chatWidgetContainer = document.getElementById('chat-widget-container');
 const chatCloseBtn = document.getElementById('chat-close-btn');
-const questionList = document.getElementById('question-list');
-const quizFeedback = document.getElementById('quiz-feedback');
+const chatMessagesContainer = document.getElementById('chat-messages-container');
+const chatSuggestionChips = document.getElementById('chat-suggestion-chips');
 
 chatToggleBtn.addEventListener('click', () => chatWidgetContainer.classList.toggle('open'));
 chatCloseBtn.addEventListener('click', () => chatWidgetContainer.classList.remove('open'));
 
-const MC_QUESTIONS = [
-  {
-    id: 'deepfakes_politics',
-    q: 'Wie genau beeinflussen Deep Fakes die politische Meinung?',
-    choices: [
-      'A: Sie haben keinen Einfluss',
-      'B: Kurzfristige Verwirrung, aber keinen langfristigen Effekt',
-      'C: Sie untergraben Vertrauen, verstärken Emotionen und können Wahlen beeinflussen',
-      'D: Sie betreffen nur ältere Generationen'
-    ],
-    correct: 2,
-    explain: `Deep Fakes können Vertrauen in Medien und Institutionen untergraben. Sie führen zu Verunsicherung, nutzen Bestätigungsfehler und werden durch Social Media Algorithmen verstärkt. Kurzfristig schädigen sie den Ruf Einzelner, mittel- bis langfristig erodieren sie das gemeinsame Faktenfundament. Gegenmassnahmen: Kennzeichnung, Faktenchecks, Medienbildung.`
-  },
-  {
-    id: 'watermark',
-    q: 'Welche Massnahme fand in unserer Umfrage die höchste Zustimmung?',
-    choices: ['A: Strengere Strafen', 'B: Unsichtbares Wasserzeichen für KI Medien', 'C: Verbot von KI Bildern', 'D: Mehr Werbung'],
-    correct: 1,
-    explain: 'Die höchste Zustimmung erhielt die Forderung nach einem unsichtbaren Wasserzeichen für KI Medien (Ø 3.32 / 4).'
-  },
-  {
-    id: 'behavior',
-    q: 'Was tun viele Befragte, wenn eine Nachricht dubios wirkt?',
-    choices: ['A: Quelle prüfen', 'B: Sofort teilen', 'C: Immer melden', 'D: Ignorieren niemals'],
-    correct: 0,
-    explain: '32.6 % prüfen aktiv die Quelle, 31.8 % ignorieren, 25.8 % melden die Plattform.'
-  },
-  {
-    id: 'limitations',
-    q: 'Welche Limitation ist in unserer Studie relevant?',
-    choices: ['A: Zu viele Senioren', 'B: Kleine Seniorengruppe', 'C: Keine Online Daten', 'D: Keine Quellen'],
-    correct: 1,
-    explain: 'Mit n = 6 Senioren ist diese Gruppe zu klein, um repräsentativ zu sein.'
-  }
-];
-
-function renderQuestions() {
-  questionList.innerHTML = '';
-  MC_QUESTIONS.forEach((item, idx) => {
-    const card = document.createElement('div');
-    card.className = 'quiz-card border border-border p-4 rounded-md group-card';
-    card.innerHTML = `
-      <p class="font-mono text-[10px] text-accent">Frage ${idx+1}</p>
-      <h4 class="mt-2 font-display text-sm font-bold">${item.q}</h4>
-      <div class="mt-3 space-y-2" id="opts-${item.id}"></div>
-      <div class="mt-3"><button class="ans-submit bg-accent text-accent-foreground px-3 py-1 rounded-md" data-id="${item.id}">Antwort prüfen</button></div>
-    `;
-
-    questionList.appendChild(card);
-
-    const opts = card.querySelector(`#opts-${item.id}`);
-    item.choices.forEach((ch, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'ans-btn w-full text-left px-3 py-2 border border-border rounded-md bg-card';
-      btn.textContent = ch;
-      btn.dataset.qid = item.id;
-      btn.dataset.idx = i;
-      btn.addEventListener('click', () => {
-        // deselect siblings
-        opts.querySelectorAll('.ans-btn').forEach(b => b.classList.remove('selected-real'));
-        btn.classList.add('selected-real');
-      });
-      opts.appendChild(btn);
-    });
-
-    card.querySelector('.ans-submit').addEventListener('click', (e) => {
-      const id = e.currentTarget.dataset.id;
-      const sel = card.querySelector('.ans-btn.selected-real');
-      if (!sel) {
-        quizFeedback.classList.remove('hidden');
-        quizFeedback.innerHTML = '<b>Hinweis:</b> Bitte wähle zuerst eine Antwort aus.';
-        return;
-      }
-      const selectedIdx = Number(sel.dataset.idx);
-      const q = MC_QUESTIONS.find(x => x.id === id);
-      const correct = selectedIdx === q.correct;
-      quizFeedback.classList.remove('hidden');
-      quizFeedback.innerHTML = `<div class="font-bold">${correct ? 'Richtig' : 'Falsch'}</div><div class="mt-2">${q.explain}</div>`;
-      if (correct) {
-        sel.classList.add('selected-real');
-        card.classList.add('quiz-card correct');
-      } else {
-        sel.classList.add('selected-ai');
-        card.classList.add('quiz-card wrong');
-      }
-    });
-  });
-}
-
-renderQuestions();
-
-// Predefined info buttons for quick factual answers (no AI)
 const PREDEFINED = [
   { id: 'demografie', label: 'Demografie', text: `Unsere Erhebung umfasste n = 132 vollständige Antworten. Altersverteilung: Junge Erwachsene 88 (66.7 %), Erwachsene 38 (28.8 %), Senioren 6 (4.5 %). Geschlechterverteilung: 77 weiblich, 49 männlich, 6 divers.` },
   { id: 'befunde', label: 'Hauptbefunde', text: `Die vier Hauptbefunde: 1) Junge überschätzen sich, 2) Sorge wächst mit dem Alter, 3) Konsens für Wasserzeichenpflicht, 4) Fehlende Sensibilisierung und geringes Vertrauen in Plattformen.` },
   { id: 'wasserzeichen', label: 'Wasserzeichen', text: `Die höchste Zustimmung erhielt eine unsichtbare Kennzeichnungspflicht für KI Medien (Mittelwert 3.32 / 4). Diese Massnahme wird generationenübergreifend unterstützt.` },
-  { id: 'verhalten', label: 'Verhalten bei dubiosen Inhalten', text: `Maßnahmen der Befragten: 32.6 % prüfen die Quelle, 31.8 % ignorieren verdächtige Inhalte, 25.8 % melden sie der Plattform.` },
+  { id: 'verhalten', label: 'Verhalten', text: `Maßnahmen der Befragten: 32.6 % prüfen die Quelle, 31.8 % ignorieren verdächtige Inhalte, 25.8 % melden sie der Plattform.` },
   { id: 'limitationen', label: 'Limitationen', text: `Wichtige Limitation: Die Seniorengruppe ist mit n = 6 sehr klein und daher nicht repräsentativ. Zusätzlich besteht ein Self Selection Bias durch die Online Erhebung.` },
   { id: 'deepfakes', label: 'Deep Fakes und Politik', text: `Deep Fakes untergraben Vertrauen, verstärken polarisierende Narrative und können kurzfristig Wahlen beeinflussen. Gegenmassnahmen: Kennzeichnung, schnelle Faktenchecks, Medienbildung.` }
 ];
 
-function renderInfoButtons(){
-  const container = document.getElementById('info-buttons');
+function appendBotMessage(html) {
+  const container = document.createElement('div');
+  container.className = 'flex flex-col items-start gap-1';
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble-bot px-4 py-3 max-w-[85%] leading-relaxed';
+  bubble.innerHTML = html;
+  const label = document.createElement('span');
+  label.className = 'font-mono text-[9px] text-muted-foreground mt-1 px-1';
+  label.textContent = 'ASSISTANT';
+  container.appendChild(bubble);
+  container.appendChild(label);
+  chatMessagesContainer.appendChild(container);
+  chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+}
+
+function renderSuggestionChips(){
   PREDEFINED.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'chat-chip text-xs px-3 py-1.5 rounded-full text-muted-foreground transition-all';
     btn.textContent = p.label;
-    btn.addEventListener('click', () => {
-      quizFeedback.classList.remove('hidden');
-      quizFeedback.innerHTML = `<div class="font-bold">${p.label}</div><div class="mt-2">${p.text}</div>`;
-      // highlight corresponding card if present
-      const related = document.querySelector(`[data-id="${p.id}"]`);
-      if(related) related.classList.add('quiz-card correct');
-    });
-    container.appendChild(btn);
+    btn.addEventListener('click', () => appendBotMessage(`<div class="font-bold">${p.label}</div><div class="mt-2">${p.text}</div>`));
+    chatSuggestionChips.appendChild(btn);
   });
 }
 
-renderInfoButtons();
+renderSuggestionChips();
 </script>
 </body>
 </html>
