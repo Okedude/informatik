@@ -18,6 +18,11 @@ if (apiKey && apiKey.trim() !== '') {
   }
 }
 
+// Prefer running this serverless function in sfo1 to improve egress/DNS reliability
+module.exports.config = {
+  regions: ['sfo1']
+};
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { message, history } = req.body || {};
