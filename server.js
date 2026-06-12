@@ -270,7 +270,35 @@ app.post('/api/chat', async (req, res) => {
       .replace(/^# (.+)$/gm, '<b>$1</b>')
       .replace(/^- (.+)$/gm, '• $1');
 
-    res.json({ reply: formattedText });
+      res.json({ reply: formattedText });
+      } catch (error) {
+        console.error("Gemini API error:", error && (error.message || error.code || error));
+        // Log stack if available for debugging network/fetch failures
+        if (error && error.stack) console.error(error.stack);
+        const msg = (error && error.message) ? String(error.message) : '';
+
+        // If the model is unavailable, return 503 with a helpful hint to set GEMINI_MODEL or use Hugging Face
+        if (msg.includes('no longer available') || msg.includes('404') || msg.includes('Not Found')) {
+          return res.status(503).json({ error: `Requested model '${modelName}' unavailable. Set GEMINI_MODEL to a supported Gemini model, or set HUGGINGFACE_API_KEY and HUGGINGFACE_MODEL in .env to use a free Hugging Face model.`, provider: 'gemini' });
+        }
+
+        // For network or provider errors include additional diagnostics where available
+        if (error && (error.code === 'ENOTFOUND' || (msg && msg.includes('ENOTFOUND')))) {
+          // Use local fallback generator when external inference is unreachable
+          const fallback = (function(question){
+            const q = (question || '').toLowerCase();
+            if (q.includes('deepfake') || q.includes('deepfak') || q.includes('polit')) {
+              return `**Kurzfassung:** Deepfakes können politische Meinungsbildung erheblich beeinflussen.\n\n**Wesentliche Mechanismen:**\n- **Vertrauensverlust:** Die Existenz von Deepfakes untergräbt das Vertrauen in audiovisuelle Medien ("liar's dividend").\n- **Confirmation Bias:** Menschen glauben eher Informationen, die ihre bestehenden Ansichten bestätigen — Deepfakes nutzen das.\n- **Timing-Effekt:** Kurz vor Wahlen platzierte Deepfakes sind besonders gefährlich, weil wenig Zeit für Korrekturen bleibt.\n- **Algorithmische Verstärkung:** Soziale Netzwerke bevorzugen emotionale Inhalte, wodurch manipulierte Medien schneller viral gehen.\n\n**Unsere Umfrage (n = 132) — relevante Punkte:**\n- Mehrheit junge Teilnehmende (66.7%).\n- Höchste Zustimmung für eine Kennzeichnungspflicht: Mittelwert **3.32/4**.\n- Sorge vor Wahlbeeinflussung steigt mit dem Alter (Junge: 2.44/4, Erwachsene: 2.74/4, Senioren: 3.00/4).\n- Viele prüfen Quellen (32.6%), ein Drittel ignoriert verdächtige Inhalte.\n\n**Gegenmaßnahmen (wirksam):**\n- **Wasserzeichenpflicht** für KI‑generierte Medien (hohe Zustimmung in unserer Studie).\n- **Schnelle Faktenchecks** und offizielle Gegendarstellungen direkt in Plattform‑Feeds.\n- **Medienbildung** und Sensibilisierung, besonders für ältere Zielgruppen.\n- **Technische Erkennung** kombiniert mit Transparenzpflichten für Plattformen.`;
+            }
+            return 'Keine Antwort verfügbar.';
+          })(req.body.message);
+          const formatted = fallback.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+          return res.status(200).json({ reply: formatted });
+        }
+
+        res.status(500).json({ error: msg || 'Unknown Gemini API error', code: error && error.code ? error.code : null });
+      }
+    }
     } catch (error) {
     console.error("Gemini API error:", error && (error.message || error.code || error));
     // Log stack if available for debugging network/fetch failures
