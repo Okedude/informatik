@@ -22,6 +22,34 @@ const modelName = process.env.GEMINI_MODEL || 'gemini-1.5';
 const hfKey = process.env.HUGGINGFACE_API_KEY;
 const hfModel = process.env.HUGGINGFACE_MODEL || 'mistralai/mistral-small';
 
+// Helper: fetch with retries + exponential backoff (used for Hugging Face calls)
+async function fetchWithRetries(fetchFn, url, opts = {}, attempts = 5, backoff = 700) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetchFn(url, { signal: controller.signal, ...opts });
+      clearTimeout(timeout);
+      if (!response.ok && response.status >= 500 && i < attempts - 1) {
+        lastErr = new Error(`HTTP ${response.status}`);
+        console.warn(`Fetch attempt ${i + 1} failed with ${response.status}, retrying...`);
+        await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+        continue;
+      }
+      return response;
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        console.warn(`Network error on fetch attempt ${i + 1}:`, err && (err.code || err.message));
+        await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+      }
+    }
+  }
+  if (lastErr && typeof lastErr === 'object') lastErr.attempts = attempts;
+  throw lastErr;
+}
+
 // Updated system instruction – allows deepfake topic knowledge + survey data
 const systemInstruction = `Du bist ein intelligenter KI-Assistent für das Schulprojekt "DEEP/FAKE" mit dem Thema: "Inwiefern gefährden KI-generierte Deep-Fakes die politische Meinungsbildung?".
 
@@ -129,27 +157,39 @@ app.post('/api/chat', async (req, res) => {
         // If HF key is present, try Hugging Face as fallback instead of failing immediately
         if (hfKey) {
           const fetch = global.fetch || (await import('node-fetch')).default;
-          const hfResp = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${hfKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              inputs: message,
-              parameters: { max_new_tokens: 300 }
-            })
-          });
+          try {
+            const hfResp = await fetchWithRetries(fetch, `https://api-inference.huggingface.co/models/${hfModel}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${hfKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                inputs: message,
+                parameters: { max_new_tokens: 300 }
+              })
+            });
 
-          if (!hfResp.ok) {
-            const text = await hfResp.text();
-            throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+            if (!hfResp.ok) {
+              const text = await hfResp.text();
+              throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+            }
+
+            const hfData = await hfResp.json();
+            if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
+            else if (hfData.generated_text) responseText = hfData.generated_text;
+            else responseText = JSON.stringify(hfData);
+          } catch (hfErr) {
+            if (hfErr && (hfErr.code === 'ENOTFOUND' || (hfErr.message && hfErr.message.includes('ENOTFOUND')))) {
+              console.error('Hugging Face host resolution failed:', hfErr.code || hfErr.message || hfErr);
+              return res.status(503).json({ error: 'Inference provider unreachable (DNS)', provider: 'huggingface', code: hfErr.code || null, message: 'Host resolution failed. Please try again later.' });
+            }
+            if (hfErr && (hfErr.code === 'ECONNRESET' || hfErr.code === 'ETIMEDOUT' || (hfErr.message && (hfErr.message.includes('timeout') || hfErr.message.includes('aborted'))))) {
+              console.error('Hugging Face network error:', hfErr.code || hfErr.message || hfErr);
+              return res.status(502).json({ error: 'Inference provider network error', provider: 'huggingface', code: hfErr.code || null, attempts: hfErr.attempts || null });
+            }
+            throw hfErr;
           }
-
-          const hfData = await hfResp.json();
-          if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
-          else if (hfData.generated_text) responseText = hfData.generated_text;
-          else responseText = JSON.stringify(hfData);
         } else {
           // rethrow to be handled by outer catch
           throw err;
@@ -158,27 +198,39 @@ app.post('/api/chat', async (req, res) => {
     } else if (hfKey) {
       // Use Hugging Face Inference API as a fallback to a 'real' model.
       const fetch = global.fetch || (await import('node-fetch')).default;
-      const hfResp = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${hfKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          inputs: message,
-          parameters: { max_new_tokens: 300 }
-        })
-      });
+      try {
+        const hfResp = await fetchWithRetries(fetch, `https://api-inference.huggingface.co/models/${hfModel}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${hfKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: message,
+            parameters: { max_new_tokens: 300 }
+          })
+        });
 
-      if (!hfResp.ok) {
-        const text = await hfResp.text();
-        throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+        if (!hfResp.ok) {
+          const text = await hfResp.text();
+          throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+        }
+
+        const hfData = await hfResp.json();
+        if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
+        else if (hfData.generated_text) responseText = hfData.generated_text;
+        else responseText = JSON.stringify(hfData);
+      } catch (hfErr) {
+        if (hfErr && (hfErr.code === 'ENOTFOUND' || (hfErr.message && hfErr.message.includes('ENOTFOUND')))) {
+          console.error('Hugging Face host resolution failed:', hfErr.code || hfErr.message || hfErr);
+          return res.status(503).json({ error: 'Inference provider unreachable (DNS)', provider: 'huggingface', code: hfErr.code || null, message: 'Host resolution failed. Please try again later.' });
+        }
+        if (hfErr && (hfErr.code === 'ECONNRESET' || hfErr.code === 'ETIMEDOUT' || (hfErr.message && (hfErr.message.includes('timeout') || hfErr.message.includes('aborted'))))) {
+          console.error('Hugging Face network error:', hfErr.code || hfErr.message || hfErr);
+          return res.status(502).json({ error: 'Inference provider network error', provider: 'huggingface', code: hfErr.code || null, attempts: hfErr.attempts || null });
+        }
+        throw hfErr;
       }
-
-      const hfData = await hfResp.json();
-      if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
-      else if (hfData.generated_text) responseText = hfData.generated_text;
-      else responseText = JSON.stringify(hfData);
     }
 
     // Convert Markdown to HTML for display in the chat widget
@@ -193,19 +245,23 @@ app.post('/api/chat', async (req, res) => {
       .replace(/^- (.+)$/gm, '• $1');
 
     res.json({ reply: formattedText });
-  } catch (error) {
-    console.error("Gemini API error:", error);
+    } catch (error) {
+    console.error("Gemini API error:", error && (error.message || error.code || error));
     // Log stack if available for debugging network/fetch failures
     if (error && error.stack) console.error(error.stack);
     const msg = (error && error.message) ? String(error.message) : '';
 
     // If the model is unavailable, return 503 with a helpful hint to set GEMINI_MODEL or use Hugging Face
     if (msg.includes('no longer available') || msg.includes('404') || msg.includes('Not Found')) {
-      return res.status(503).json({ error: `Requested model '${modelName}' unavailable. Set GEMINI_MODEL to a supported Gemini model, or set HUGGINGFACE_API_KEY and HUGGINGFACE_MODEL in .env to use a free Hugging Face model.` });
+      return res.status(503).json({ error: `Requested model '${modelName}' unavailable. Set GEMINI_MODEL to a supported Gemini model, or set HUGGINGFACE_API_KEY and HUGGINGFACE_MODEL in .env to use a free Hugging Face model.`, provider: 'gemini' });
     }
 
-    // For authentication or other client errors return 500 with the message.
-    res.status(500).json({ error: msg || 'Unknown Gemini API error' });
+    // For network or provider errors include additional diagnostics where available
+    if (error && (error.code === 'ENOTFOUND' || (msg && msg.includes('ENOTFOUND')))) {
+      return res.status(503).json({ error: 'Inference provider unreachable (DNS)', code: error.code || null });
+    }
+
+    res.status(500).json({ error: msg || 'Unknown Gemini API error', code: error && error.code ? error.code : null });
   }
 });
 

@@ -38,19 +38,68 @@ module.exports = async (req, res) => {
 
     if (!responseText && hfKey) {
       const fetch = global.fetch || (await import('node-fetch')).default;
-      const hfResp = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${hfKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: message, parameters: { max_new_tokens: 300 } })
-      });
-      if (!hfResp.ok) {
-        const text = await hfResp.text();
-        throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+
+      // Helper: fetch with retries + exponential backoff
+      async function fetchWithRetries(url, opts = {}, attempts = 5, backoff = 700) {
+        let lastErr;
+        for (let i = 0; i < attempts; i++) {
+          try {
+            // timeout using AbortController
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            const response = await fetch(url, { signal: controller.signal, ...opts });
+            clearTimeout(timeout);
+            if (!response.ok && response.status >= 500 && i < attempts - 1) {
+              // server error, retry
+              lastErr = new Error(`HTTP ${response.status}`);
+              console.warn(`Fetch attempt ${i + 1} failed with ${response.status}, retrying...`);
+              await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+              continue;
+            }
+            return response;
+          } catch (err) {
+            lastErr = err;
+            // retry on network errors
+            if (i < attempts - 1) {
+              console.warn(`Network error on fetch attempt ${i + 1}:`, err && (err.code || err.message));
+              await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+            }
+          }
+        }
+        // attach attempts info for diagnostics
+        if (lastErr && typeof lastErr === 'object') lastErr.attempts = attempts;
+        throw lastErr;
       }
-      const hfData = await hfResp.json();
-      if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
-      else if (hfData.generated_text) responseText = hfData.generated_text;
-      else responseText = JSON.stringify(hfData);
+
+      try {
+        const hfResp = await fetchWithRetries(`https://api-inference.huggingface.co/models/${hfModel}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${hfKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs: message, parameters: { max_new_tokens: 300 } })
+        });
+
+        if (!hfResp.ok) {
+          const text = await hfResp.text();
+          throw new Error(`HuggingFace inference error: ${hfResp.status} ${text}`);
+        }
+
+        const hfData = await hfResp.json();
+        if (Array.isArray(hfData) && hfData[0].generated_text) responseText = hfData[0].generated_text;
+        else if (hfData.generated_text) responseText = hfData.generated_text;
+        else responseText = JSON.stringify(hfData);
+      } catch (err) {
+        // Surface DNS / network errors as 503 so client can use offline fallback
+        if (err && (err.code === 'ENOTFOUND' || (err.message && err.message.includes('ENOTFOUND')))) {
+          console.error('Hugging Face host resolution failed:', err.code || err.message || err);
+          return res.status(503).json({ error: 'Inference provider unreachable (DNS)', provider: 'huggingface', code: err.code || null, message: 'Host resolution failed. Please try again later.' });
+        }
+        // For other network-type errors include a hint and attempts if available
+        if (err && (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || (err.message && (err.message.includes('timeout') || err.message.includes('aborted'))))) {
+          console.error('Hugging Face network error:', err.code || err.message || err);
+          return res.status(502).json({ error: 'Inference provider network error', provider: 'huggingface', code: err.code || null, attempts: err.attempts || null });
+        }
+        throw err;
+      }
     }
 
     // Final fallback
@@ -60,7 +109,9 @@ module.exports = async (req, res) => {
     let formattedText = responseText.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<i>$1</i>').replace(/^- (.+)$/gm, '• $1');
     res.json({ reply: formattedText });
   } catch (error) {
-    console.error('API error:', error);
-    res.status(500).json({ error: (error && error.message) ? error.message : 'Unknown error' });
+    console.error('API error:', error && (error.message || error.code || error));
+    const safeMessage = (error && error.message) ? String(error.message) : 'Unknown error';
+    // Avoid leaking stack traces to clients; provide structured diagnostics for client fallback
+    return res.status(500).json({ error: safeMessage, code: error && error.code ? error.code : null });
   }
 };
