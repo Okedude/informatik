@@ -324,7 +324,7 @@ tailwind.config = {
 <section id="umfrage" class="border-b border-border">
   <div class="mx-auto max-w-7xl px-6 py-24">
     <div class="mb-8 flex flex-wrap items-center gap-4">
-      <a href="./Umfrageergebnisse.xlsx" download class="bg-accent text-accent-foreground px-6 py-3 font-mono text-xs uppercase tracking-widest hover:bg-accent/90 transition-colors">↓ Rohdaten herunterladen (.xlsx)</a>
+
       <span class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">n = 132 · Microsoft Forms · April–Juni 2026</span>
     </div>
 
@@ -521,7 +521,7 @@ tailwind.config = {
         <li class="border-l border-border pl-4"><span class="font-mono text-[10px] text-accent">[07]</span> <span class="text-foreground">Reuters Institute (2024).</span> <em>Digital News Report 2024 — AI & News.</em> University of Oxford. <a class="text-accent underline" href="https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2024" target="_blank" rel="noopener">reutersinstitute.politics.ox.ac.uk</a></li>
         <li class="border-l border-border pl-4"><span class="font-mono text-[10px] text-accent">[08]</span> <span class="text-foreground">Eidgenössisches Departement für Verteidigung VBS / NCSC (2024).</span> <em>Halbjahresbericht zur Cyberlage: Desinformation und Deepfakes.</em> <a class="text-accent underline" href="https://www.ncsc.admin.ch/ncsc/de/home/dokumentation/berichte/lageberichte.html" target="_blank" rel="noopener">ncsc.admin.ch</a></li>
         <li class="border-l border-border pl-4"><span class="font-mono text-[10px] text-accent">[09]</span> <span class="text-foreground">SRF (2024).</span> <em>"Deepfake-Videos zur US-Wahl: Wie KI den Wahlkampf verändert."</em> Schweizer Radio und Fernsehen, Online-Bericht. <a class="text-accent underline" href="https://www.srf.ch/news/international/us-wahlen-2024-ki-und-deepfakes-im-wahlkampf" target="_blank" rel="noopener">srf.ch</a></li>
-        <li class="border-l border-border pl-4"><span class="font-mono text-[10px] text-accent">[10]</span> <span class="text-foreground">Eigene Erhebung (2026).</span> <em>"Echt oder Fake — Umgang mit KI-Deep-Fakes im Netz."</em> Online-Umfrage via Microsoft Forms, 17.4. – 11.6.2026, n = 132. Rohdaten: <a class="text-accent underline" href="./Umfrageergebnisse.xlsx" download>Umfrageergebnisse.xlsx</a>.</li>
+        <li class="border-l border-border pl-4"><span class="font-mono text-[10px] text-accent">[10]</span> <span class="text-foreground">Eigene Erhebung (2026).</span> <em>"Echt oder Fake — Umgang mit KI Deep Fakes im Netz."</em> Online Umfrage via Microsoft Forms, 17.4. – 11.6.2026, n = 132.</li>
       </ol>
       <div class="mt-10 border border-border bg-card/50 p-6">
         <p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Quiz-Bildmaterial</p>
@@ -533,7 +533,7 @@ tailwind.config = {
 
 <footer class="py-12 text-center font-mono text-[11px] uppercase tracking-widest text-muted-foreground space-y-2">
   <div>DEEP/FAKE · Schulprojekt · 2026 · n = 132</div>
-  <div class="text-muted-foreground/60">Daten: <a href="./Umfrageergebnisse.xlsx" download class="hover:text-accent underline">Umfrageergebnisse.xlsx</a> · Quellen: <a href="#quellen" class="hover:text-accent underline">§ 07</a></div>
+  <div class="text-muted-foreground/60">Quellen: <a href="#quellen" class="hover:text-accent underline">§ 07</a></div>
 </footer>
 
 <script>
@@ -715,10 +715,7 @@ render();
 <!-- CHATBOT WIDGET -->
 <div id="chat-widget-container" class="flex flex-col bg-card/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl overflow-hidden ring-glow">
   <div class="px-5 py-4 border-b border-border bg-secondary flex items-center justify-between">
-    <div>
-      <p class="font-display font-bold text-sm tracking-tight text-foreground">DEEP/FAKE Assistant</p>
-      <p class="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Vorgefertigte Auskünfte — keine AI</p>
-    </div>
+    <p class="font-display font-bold text-sm tracking-tight text-foreground">Informationen</p>
     <button id="chat-close-btn" class="text-muted-foreground hover:text-foreground transition-colors p-1" aria-label="Widget schließen">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
     </button>
@@ -736,10 +733,7 @@ render();
   <div id="chat-suggestion-chips" class="p-3 border-t border-border bg-secondary flex flex-wrap gap-2"></div>
 </div>
 
-<!-- TOGGLE BUTTON -->
-<button id="chat-toggle-btn" class="btn-glow bg-accent text-accent-foreground w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-transform hover:scale-105" aria-label="Assistent öffnen">
-  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-</button>
+
 
 <script>
 // Chat widget with predefined, non-AI replies
@@ -749,8 +743,8 @@ const chatCloseBtn = document.getElementById('chat-close-btn');
 const chatMessagesContainer = document.getElementById('chat-messages-container');
 const chatSuggestionChips = document.getElementById('chat-suggestion-chips');
 
-chatToggleBtn.addEventListener('click', () => chatWidgetContainer.classList.toggle('open'));
 chatCloseBtn.addEventListener('click', () => chatWidgetContainer.classList.remove('open'));
+chatWidgetContainer.classList.add('open');
 
 const PREDEFINED = [
   { id: 'demografie', label: 'Demografie', text: `Unsere Erhebung umfasste n = 132 vollständige Antworten. Altersverteilung: Junge Erwachsene 88 (66.7 %), Erwachsene 38 (28.8 %), Senioren 6 (4.5 %). Geschlechterverteilung: 77 weiblich, 49 männlich, 6 divers.` },
