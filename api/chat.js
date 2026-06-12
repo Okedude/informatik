@@ -6,6 +6,8 @@ const apiKey = process.env.GEMINI_API_KEY;
 const modelName = process.env.GEMINI_MODEL || 'gemini-1.5';
 const hfKey = process.env.HUGGINGFACE_API_KEY;
 const hfModel = process.env.HUGGINGFACE_MODEL || 'mistralai/mistral-small';
+const openaiKey = process.env.OPENAI_API_KEY;
+const openaiModel = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 
 if (apiKey && apiKey.trim() !== '') {
   try {
@@ -37,6 +39,32 @@ module.exports = async (req, res) => {
     }
 
     if (!responseText && hfKey) {
+      // Prefer OpenAI if configured (often more reliable DNS-wise)
+      if (openaiKey) {
+        try {
+          const openResp = await fetchWithRetries('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ model: openaiModel, messages: [{ role: 'user', content: message }], max_tokens: 512 })
+          }, 5, 700);
+
+          if (!openResp.ok) {
+            const t = await openResp.text();
+            throw new Error(`OpenAI error ${openResp.status} ${t}`);
+          }
+
+          const openData = await openResp.json();
+          if (openData && openData.choices && openData.choices[0] && openData.choices[0].message && openData.choices[0].message.content) {
+            responseText = openData.choices[0].message.content;
+          }
+        } catch (openErr) {
+          console.warn('OpenAI call failed, falling back to Hugging Face if available:', openErr && (openErr.code || openErr.message));
+        }
+      }
+
       const fetch = global.fetch || (await import('node-fetch')).default;
 
       // Helper: fetch with retries + exponential backoff

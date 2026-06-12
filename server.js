@@ -21,6 +21,8 @@ const modelName = process.env.GEMINI_MODEL || 'gemini-1.5';
 // Hugging Face fallback (free-hosted models require an API key but many have free tiers)
 const hfKey = process.env.HUGGINGFACE_API_KEY;
 const hfModel = process.env.HUGGINGFACE_MODEL || 'mistralai/mistral-small';
+const openaiKey = process.env.OPENAI_API_KEY;
+const openaiModel = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 
 // Helper: fetch with retries + exponential backoff (used for Hugging Face calls)
 async function fetchWithRetries(fetchFn, url, opts = {}, attempts = 5, backoff = 700) {
@@ -153,9 +155,34 @@ app.post('/api/chat', async (req, res) => {
         const result = await chat.sendMessage(message);
         responseText = result.response.text();
       } catch (err) {
-        console.error('Gemini model error, will try Hugging Face fallback if configured:', err.message || err);
-        // If HF key is present, try Hugging Face as fallback instead of failing immediately
-        if (hfKey) {
+        console.error('Gemini model error, will try configured fallbacks:', err.message || err);
+        // Prefer OpenAI if configured (often more reliable DNS-wise)
+        if (openaiKey) {
+          const fetch = global.fetch || (await import('node-fetch')).default;
+          try {
+            const openResp = await fetchWithRetries(fetch, 'https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: openaiModel, messages: [{ role: 'user', content: message }], max_tokens: 512 })
+            });
+
+            if (!openResp.ok) {
+              const t = await openResp.text();
+              throw new Error(`OpenAI error ${openResp.status} ${t}`);
+            }
+
+            const openData = await openResp.json();
+            if (openData && openData.choices && openData.choices[0] && openData.choices[0].message && openData.choices[0].message.content) {
+              responseText = openData.choices[0].message.content;
+            }
+          } catch (openErr) {
+            console.error('OpenAI fallback failed:', openErr && (openErr.code || openErr.message));
+            // continue to HF if configured
+          }
+        }
+
+        // If OpenAI didn't produce a response, try Hugging Face if configured
+        if (!responseText && hfKey) {
           const fetch = global.fetch || (await import('node-fetch')).default;
           try {
             const hfResp = await fetchWithRetries(fetch, `https://api-inference.huggingface.co/models/${hfModel}`, {
@@ -190,10 +217,9 @@ app.post('/api/chat', async (req, res) => {
             }
             throw hfErr;
           }
-        } else {
-          // rethrow to be handled by outer catch
-          throw err;
         }
+        // If no fallbacks applied or none produced a response, rethrow original error
+        if (!responseText) throw err;
       }
     } else if (hfKey) {
       // Use Hugging Face Inference API as a fallback to a 'real' model.
