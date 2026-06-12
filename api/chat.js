@@ -138,8 +138,20 @@ module.exports = async (req, res) => {
     res.json({ reply: formattedText });
   } catch (error) {
     console.error('API error:', error && (error.message || error.code || error));
+    // If the error looks like a network/DNS/fetch failure, return the local deterministic fallback
+    const msg = error && (error.message || '');
+    if (error && (error.code === 'ENOTFOUND' || msg.includes('ENOTFOUND') || msg.includes('fetch failed') || msg.includes('getaddrinfo') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT'))) {
+      try {
+        const fallback = generateLocalAnswer(message);
+        const formatted = fallback.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        return res.status(200).json({ reply: formatted, fallback: true });
+      } catch (e2) {
+        console.error('Fallback generation failed:', e2);
+      }
+    }
+
     const safeMessage = (error && error.message) ? String(error.message) : 'Unknown error';
-    // Avoid leaking stack traces to clients; provide structured diagnostics for client fallback
+    // Avoid leaking stack traces to clients
     return res.status(500).json({ error: safeMessage, code: error && error.code ? error.code : null });
   }
 };
